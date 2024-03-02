@@ -14,68 +14,6 @@ FORCE_CO = True
 CHILDREN_CO = True
 
 
-def proper_attribute(node_object, attr_name=None):
-    """"""
-    # check if given value is a plug or not
-    if not attr_name and "." in node_object:
-        node_object, attr_name = node_object.split(".", 1)
-        node_object = pr.get(node_object)
-
-    plug = "{}.{}".format(node_object, attr_name)
-    AttributeClass = find_proper_attribute_class(plug)
-    return AttributeClass(node_object, attr_name)
-
-def find_proper_attribute_class(plug):
-    """"""
-    if is_multi_attribute(plug):
-        return MultiAttribute
-    return Attribute
-
-def is_multi_attribute(plug):
-    """"""
-    parts = plug.split(".")
-    try:
-        return cmds.attributeQuery(parts[-1], node=parts[0], multi=True)
-    except:
-        return False
-    
-def get_kind(plug):
-    """"""
-    try:
-        return cmds.getAttr(plug, typ=True)
-    except:
-        return "unknown"
-    
-def set_value(plug, value):
-    """"""
-    # Simple
-    if isinstance(value, (int, float, bool)):
-        cmds.setAttr(plug, value)
-
-    # String
-    elif isinstance(value, (str, six.text_type)):
-        cmds.setAttr(plug, value, type="string")
-
-    # Matrix/Float3
-    elif isinstance(value, (list, tuple)):
-        if len(value) == 16:  # Matrix
-            cmds.setAttr(plug, *value, type="matrix")
-        if len(value) == 3:  # vector
-            cmds.setAttr(plug, *value, type="float3")
-
-def get_value(plug):
-    """"""
-    value = cmds.getAttr(plug, silent=True)
-    if isinstance(value, list):
-        if len(value) == 1:
-            # remove "list in list" (eg. node[translate].value)
-            value = value[0]
-        if len(value) == 16:
-            # openMaya matrix class
-            value = om.MMatrix(value)
-
-    return value
-
 class Attribute(object):
     """"""
 
@@ -84,26 +22,32 @@ class Attribute(object):
         self._node_object = node_object
         self._attr_name = pyrig.name.AttributName(attr_name)
 
-        self._kind = None
-
     # Builtin Methods
     def __repr__(self):
-        return "{}[{}]('{}')".format(self.__class__.__name__, self.kind, self.plug)
+        return "{}('{}')".format(self.__class__.__name__, self.plug)
 
     def __str__(self):
         return self.plug
 
     def __rshift__(self, plug):
+        """Enables Attribute >> Attribute"""
         return self.connect(plug, force_co=True)
     
     def __ge__(self, plug):
+        """Enables Attribute >= Attribute"""
         return self.insert(plug, force_co=True)
 
     def __floordiv__(self, plug):
+        """Enables Attribute // Attribute"""
         return self.disconnect(plug)
     
     def __getitem__(self, key):
-        return proper_attribute(self.node, "{}.{}".format(self.attr, key))
+        """Enables Attribute[str/int]"""
+        if isinstance(key, six.string_types):
+            return Attribute(self.node, "{}.{}".format(self.attr, key))
+        elif isinstance(key, int):
+            key = self.get_next_available_index() if key == -1 else key
+            return Attribute(self.node, "{}[{}]".format(self.attr, key))
 
     # Properties
     @property
@@ -128,9 +72,10 @@ class Attribute(object):
     @property
     def kind(self):
         """"""
-        if not self._kind:
-            self._kind = get_kind(self.plug)
-        return self._kind
+        try:
+            return cmds.getAttr(self.plug, typ=True)
+        except:
+            return "unknown"
 
     @property
     def value(self):
@@ -250,6 +195,28 @@ class Attribute(object):
         children_attr = ["{}.{}".format(self.attr, child) for child in children]
         return [pr.get("{}.{}".format(self.node, child)) for child in children_attr]
 
+    # Properties - multi-attr
+    @property
+    def valid_indices(self):
+        """"""
+        return cmds.getAttr(self.plug, multiIndices=True) or []
+    
+    @property
+    def size(self):
+        """"""
+        return len(self.valid_indices)
+    
+    @property
+    def valid_plugs(self):
+        """"""
+        return [self[i] for i in self.valid_indices]
+
+    @property
+    def next_available_plug(self):
+        """"""
+        multi_index = self.get_next_available_index()
+        return pr.get(self[multi_index])
+
     # Methods
     def exists(self):
         """"""
@@ -281,9 +248,6 @@ class Attribute(object):
         for name, value in flags.items():
             setattr(self, name, value)
 
-        AttributeClass = find_proper_attribute_class(self.plug)
-        if not isinstance(self, AttributeClass):
-            self.__class__ = AttributeClass
         return self
 
     def set_value(self, value, **kwargs):
@@ -294,12 +258,34 @@ class Attribute(object):
             value = self.default
 
         self._force_lock(store=force_lock)
-        set_value(self.plug, value)
-        self._force_lock(restore=force_lock)
 
+        # Simple
+        if isinstance(value, (int, float, bool)):
+            cmds.setAttr(self.plug, value)
+        # String
+        elif isinstance(value, (str, six.text_type)):
+            cmds.setAttr(self.plug, value, type="string")
+        # Matrix/Float3
+        elif isinstance(value, (list, tuple)):
+            if len(value) == 16:  # Matrix
+                cmds.setAttr(self.plug, *value, type="matrix")
+            if len(value) == 3:  # vector
+                cmds.setAttr(self.plug, *value, type="float3")
+
+        self._force_lock(restore=force_lock)
+    
     def get_value(self):
         """"""
-        return get_value(self.plug)
+        value = cmds.getAttr(self.plug, silent=True)
+        if isinstance(value, list):
+            if len(value) == 1:
+                # remove "list in list" (eg. node[translate].value)
+                value = value[0]
+            if len(value) == 16:
+                # openMaya matrix class
+                value = om.MMatrix(value)
+
+        return value
     
     def get_input(self):
         """"""
@@ -335,15 +321,6 @@ class Attribute(object):
         else:
             self._link_attr(plug, **kwargs)
 
-    def _link_attr(self, plug, **kwargs):
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-        force_co = kwargs.get("force_co", FORCE_CO)
-
-        self._force_lock(store=force_lock)
-        cmds.connectAttr(plug.plug, self.plug, f=force_co)
-        self._force_lock(restore=force_lock)
-
     def get_outputs(self):
         """"""
         outputs = cmds.listConnections(self.plug, s=False, d=True, p=True)
@@ -354,6 +331,31 @@ class Attribute(object):
         if not isinstance(plug, Attribute):
             plug = pr.get(plug)
         plug.set_input(self, **kwargs)
+
+    def disconnect(self, plug=None, **kwargs):
+        """"""
+        if plug:
+            if not isinstance(plug, Attribute):
+                plug = pr.get(plug)
+            plug._disconnect_connection_from_plug(self, **kwargs)
+            return
+
+        self.break_connections(input=True, output=False, **kwargs)
+
+    def break_connections(self, input=False, output=True, **kwargs):
+        """"""
+        force_lock = kwargs.get("force_lock", FORCE_LOCK)
+
+        if input is True:
+            self._force_lock(store=force_lock)
+            plugs = cmds.listConnections(self.plug, s=True, d=False, p=True)
+            if plugs:
+                cmds.disconnectAttr(plugs[0], self.plug)
+            self._force_lock(restore=force_lock)
+
+        if output is True:
+            for out_plug in self.outputs:
+                out_plug.break_connection(input=True, output=False, **kwargs)
 
     def insert(self, plug, **kwargs):
         """"""
@@ -368,6 +370,59 @@ class Attribute(object):
         if self.name.index:
             valid_indices = self.parent.valid_indices
             self._move_to_next_index(valid_indices=valid_indices, **kwargs)
+
+    def reset(self, **kwargs):
+        """"""
+        force_lock = kwargs.get("force_lock", FORCE_LOCK)
+
+        if not force_lock and self.lock == True:
+            return
+        self.lock = False
+        self.input = None
+        self.value = None
+
+    # Methods - multi-attr
+    def is_multi(self):
+        """"""
+        try:
+            return cmds.attributeQuery(str(self.name[-1]), node=self.node, multi=True)
+        except:
+            return False
+
+    def get_next_available_index(self):
+        """"""
+        for i, multi_index in enumerate(self.valid_indices):
+            if i != multi_index:
+                return i
+        return len(self.valid_indices)
+
+    # Internal Methods
+    def _force_lock(self, store=False, restore=False):
+        """"""
+        if store:
+            self._locked = self.lock
+            if self._locked:
+                self.lock = False
+        if restore:
+            if self._locked:
+                self.lock = True
+
+    def _disconnect_connection_from_plug(self, plug, **kwargs):
+        """"""
+        if not isinstance(plug, Attribute):
+            plug = pr.get(plug)
+
+        if self.input.plug == str(plug):
+            self.break_connections(input=True, output=False, **kwargs)
+
+    def _link_attr(self, plug, **kwargs):
+        """"""
+        force_lock = kwargs.get("force_lock", FORCE_LOCK)
+        force_co = kwargs.get("force_co", FORCE_CO)
+
+        self._force_lock(store=force_lock)
+        cmds.connectAttr(plug.plug, self.plug, f=force_co)
+        self._force_lock(restore=force_lock)
 
     def _move_to_next_index(self, **kwargs):
         """Recursive."""
@@ -385,169 +440,3 @@ class Attribute(object):
         next_plug.lock = self.lock
         
         self.reset(**kwargs)
-    
-    def disconnect(self, plug=None, **kwargs):
-        """"""
-        if plug:
-            if not isinstance(plug, Attribute):
-                plug = pr.get(plug)
-            plug._disconnect_connection_from_plug(self, **kwargs)
-            return
-
-        self.break_connections(input=True, output=False, **kwargs)
-
-    def reset(self, **kwargs):
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-
-        if not force_lock and self.lock == True:
-            return
-        self.lock = False
-        self.input = None
-        self.value = None
-
-    def _disconnect_connection_from_plug(self, plug, **kwargs):
-        """"""
-        if not isinstance(plug, Attribute):
-            plug = pr.get(plug)
-
-        if self.input.plug == str(plug):
-            self.break_connections(input=True, output=False, **kwargs)
-
-    def break_connections(self, input=False, output=True, **kwargs):
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-
-        if input is True:
-            self._force_lock(store=force_lock)
-            plugs = cmds.listConnections(self.plug, s=True, d=False, p=True)
-            if plugs:
-                cmds.disconnectAttr(plugs[0], self.plug)
-            self._force_lock(restore=force_lock)
-
-        if output is True:
-            for out_plug in self.outputs:
-                out_plug.break_connection(input=True, output=False, **kwargs)
-
-    def _force_lock(self, store=False, restore=False):
-        """"""
-        if store:
-            self._locked = self.lock
-            if self._locked:
-                self.lock = False
-        if restore:
-            if self._locked:
-                self.lock = True
-
-class MultiAttribute(Attribute):
-    """"""
-
-    def __init__(self):
-        """"""
-        super(MultiAttribute, self).__init__()
-
-        self._sub_kind = None
-
-    # Builtin Methods
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            key = self.get_next_available_index() if key == -1 else key
-            return proper_attribute(self.node, "{}[{}]".format(self.attr, key))
-    
-    # Properties
-    @property
-    def valid_indices(self):
-        """"""
-        return cmds.getAttr(self.plug, multiIndices=True) or []
-    
-    @property
-    def size(self):
-        """"""
-        return len(self.valid_indices)
-    
-    @property
-    def valid_plugs(self):
-        """"""
-        return [self[i] for i in self.valid_indices]
-
-    @property
-    def next_available_plug(self):
-        """"""
-        multi_index = self.get_next_available_index()
-        return pr.get(self[multi_index])
-    
-    # Methods
-    def get_next_available_index(self):
-        """"""
-        for i, multi_index in enumerate(self.valid_indices):
-            if i != multi_index:
-                return i
-        return len(self.valid_indices)
-    
-    def set_value(self, value, **kwargs): # Overrides
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-
-        if value is None:
-            value = self.next_available_plug.default
-
-        self.next_available_plug._force_lock(store=force_lock)
-        set_value(str(self.next_available_plug), value)
-        self.next_available_plug._force_lock(restore=force_lock)
-
-    def get_value(self): # Overrides
-        """"""
-        return [get_value(str(plug)) for plug in self.valid_plugs]
-
-    def get_input(self): # Overrides
-        """"""
-        inputs = [cmds.listConnections(str(plug), s=True, d=False, p=True) for plug in self.valid_plugs]
-        return [pr.get(input_[0]) if input_ else None for input_ in inputs]
-    
-    def set_input(self, plug, **kwargs): # Overrides
-        """"""
-        self.next_available_plug.set_input(plug, **kwargs)
-    
-    def get_outputs(self): # Overrides
-        """"""
-        outputs = [cmds.listConnections(plug, s=False, d=True, p=True) for plug in self.valid_plugs]
-        return [[pr.get(x) for x in outs or []] for outs in outputs]
-    
-    def disconnect(self, plug=None, **kwargs): # Overrides
-        """"""
-        if plug:
-            for valid_p in self.valid_plugs:
-                if not isinstance(plug, Attribute):
-                    plug = pr.get(plug)
-                plug._disconnect_connection_from_plug(valid_p, **kwargs)
-            return
-
-        self.break_connections(input=True, output=False, **kwargs)
-
-    def _disconnect_connection_from_plug(self, plug, **kwargs): # Overrides
-        """"""
-        if not isinstance(plug, Attribute):
-            plug = pr.get(plug)
-
-        for valid_p in self.valid_plugs:
-            if valid_p.input.plug == str(plug):
-                valid_p.break_connections(input=True, output=False,**kwargs)
-
-    def break_connections(self, input=False, output=True, **kwargs): # Overrides
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-
-        if input is True:
-            for valid_p in self.valid_plugs:
-                valid_p._force_lock(store=force_lock)
-                plugs = cmds.listConnections(valid_p.plug, s=True, d=False, p=True)
-                if plugs:
-                    cmds.disconnectAttr(plugs[0], valid_p.plug)
-                valid_p._force_lock(restore=force_lock)
-
-        if output is True:
-            for valid_p in self.valid_plugs:
-                for outputs in self.outputs:
-                    for out_plug in outputs:
-                        out_plug.break_connection(input=True, output=False, **kwargs)
-

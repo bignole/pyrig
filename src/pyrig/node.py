@@ -34,20 +34,22 @@ class Node(object):
 
     # Builtin Methods
     def __repr__(self):
-        return "{}[{}]('{}')".format(self.__class__.__name__, self.node_type, self.node)
+        return "{}('{}')".format(self.__class__.__name__, self.node)
         
     def __str__(self):
         return self.node
     
     def __add__(self, val):
+        """Enables Node + str"""
         return "{}{}".format(self.node, val)
     
     def __getitem__(self, key):
+        """Enables Node[str]"""
         return self.attr(key)
     
     def attr(self, key):
         """"""
-        return pyrig.attribute.proper_attribute(self, key)
+        return pyrig.attribute.Attribute(self, key)
         
     # Properties
     @property
