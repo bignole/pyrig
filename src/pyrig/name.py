@@ -138,6 +138,7 @@ class AttributName(object):
         """"""
         # Convert args to list.
         self._tokens = []
+        self._node = None
 
         # Parse the inputs correctly.
         for part in list(args):
@@ -175,9 +176,23 @@ class AttributName(object):
         return AttributName(*self._tokens)
 
     @property
+    def node(self):
+        """"""
+        return self._node
+
+    @node.setter
+    def node(self, value):
+        self._node = value
+
+    @property
     def tokens(self):
         """"""
         return self._tokens
+    
+    @property
+    def plug(self):
+        """"""
+        return "{}.{}".format(self.node, self.to_string())
     
     @property
     def index(self):
@@ -187,6 +202,21 @@ class AttributName(object):
         if enclose_index:
             index = int(re.findall("[0-9]+", enclose_index[0])[0])
         return index
+    
+    @property
+    def nice(self):
+        """"""
+        cmds.attributeName(self.plug, nice=True, leaf=True)
+
+    @property
+    def short(self):
+        """"""
+        cmds.attributeName(self.plug, short=True, leaf=True)
+
+    @property
+    def long(self):
+        """"""
+        cmds.attributeName(self.plug, long=True, leaf=True)
 
     def to_string(self):
         """"""

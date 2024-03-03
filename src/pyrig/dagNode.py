@@ -16,7 +16,6 @@ class DagNode(pyrig.node.Node):
     def __init__(self, *args, **kwargs):
         """"""
         super(DagNode, self).__init__(*args, **kwargs)
-        self._parent_attribute = None
 
     @property
     def rotate_order(self):
@@ -38,16 +37,16 @@ class DagNode(pyrig.node.Node):
         return [pr.get(each) for each in cmds.listRelatives(self, shapes=True)]
 
     @property
-    def dag_parent(self):
+    def parent(self):
         """"""
         parent = (cmds.listRelatives(self.node, parent=True) or [None])[0]
         return pr.get(parent)
 
-    @dag_parent.setter
-    def dag_parent(self, value):
-        self._set_dag_parent(value)
+    @parent.setter
+    def parent(self, value):
+        self._set_parent(value)
 
-    def _set_dag_parent(self, value, relative=False):
+    def _set_parent(self, value, relative=False):
         """"""
         if value is None:
             cmds.parent(self, world=True, relative=relative)
@@ -63,50 +62,6 @@ class DagNode(pyrig.node.Node):
             LOG.debug("{} is already a child of {}".format(self, value))
             return
         cmds.parent(self, value, relative=relative)
-
-    @property
-    def parent(self):
-        """Get the DCC parent relationship attribute."""
-        return self._parent_attribute
-
-    @parent.setter
-    def parent(self, value):
-        return self._set_parent(value)
-
-    def _set_parent(self, attribute):
-        """Set the parent relationship in a private method to allow override.
-
-        Args:
-            attribute (pyrig.attribute.Attribute): Matrix attribute input.
-        """
-        # Set private variable.
-        self._parent_attribute = attribute
-
-        # Matrix maths relevant for parent relationship.
-        parent_matrix = attribute.value
-        child_matrix = self.worldMatrix.value
-        offset_matrix = parent_matrix.inverse() * child_matrix
-
-        # Stack to mult the matrices.
-        stack_node = pr.create("LoomTransform", name=self.name.copy())
-        stack_node.name.append_type()
-
-        # Connect Matrices.
-        attribute >> stack_node.parent
-        translate, rotate, scale = offset_matrix.decompose()
-        stack_node.translate.value = translate
-        stack_node.rotate.value = rotate
-        stack_node.scale.value = scale
-
-        # Create Decompose and connect to the node.
-        mdcp = pr.create("decomposeMatrix", name=self.name.copy())
-        mdcp.name.append_type()
-
-        stack_node.world_space >> mdcp.inputMatrix
-        for xyz in "XYZ":
-            mdcp.attr("outputTranslate" + xyz) >> self.attr("translate" + xyz)
-            mdcp.attr("outputRotate" + xyz) >> self.attr("rotate" + xyz)
-            mdcp.attr("outputScale" + xyz) >> self.attr("scale" + xyz)
 
     def move_to(self, matrix):
         """Move to given matrix."""
@@ -166,107 +121,6 @@ class DagNode(pyrig.node.Node):
         scale = pr.Types.Vec3(scale)
         offset = pr.Types.Mat44(translation, rotation, scale)
         self.move_to(self.worldMatrix.value * offset)
-
-    def get_unique_attr_name(self, attr_name, idx=None):
-        """Make sure the given attribute name is unique.
-
-        Args:
-            attr_name (str): Name of the attribute to check.
-            idx (int): Specify an ending index.
-
-        Returns:
-            str: The new (if applicable) name.
-        """
-        result = "{}{}".format(attr_name, idx or "")
-        idx = 0
-        while pr.pycmds("attributeQuery", result, node=self.node, exists=True):
-            idx += 1
-            result = "{}{}".format(attr_name, idx)
-        return result
-
-    def add_separator(self, nice_name="Separator"):
-        """Create a unique separator attribute.
-
-        Args:
-            nice_name (str): Give a nice name to the attribute.
-        """
-        separator_name = self.get_unique_attr_name("separator")
-        pr.pycmds(
-            "addAttr",
-            self.node,
-            longName=separator_name,
-            niceName=nice_name,
-            attributeType="enum",
-            enumName="--------------",
-        )
-        self.attr(separator_name).visible = True
-
-    def attributes_property(
-        self, attributes, lock=False, keyable=True, visible=True
-    ):
-        """Change attributes properties on the node.
-
-        Args:
-            attributes (list): List of attributes to lock or unlock.
-            lock (bool): Lock when True, and unlock when False.
-            keyable (bool): Set keyable when True, and non-keyable when False.
-            visible (bool): Hide when True, and show when False.
-        """
-        # Validate string input.
-        if isinstance(attributes, six.string_types):
-            attributes = [attributes]
-
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
-
-        # Go through and lock the attributes.
-        for attr in attributes:
-            self.attr(attr).locked = lock
-            self.attr(attr).visible = visible
-            self.attr(attr).keyable = keyable
-
-    def lock_attributes(self, attributes=None, lock=True):
-        """Lock multiple attributes on the node.
-
-        Args:
-            attributes (list): List of attributes to lock or unlock.
-            lock (bool): Lock when True, and unlock when False.
-        """
-        # Validate string input.
-        if isinstance(attributes, six.string_types):
-            attributes = [attributes]
-
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
-
-        # Go through and lock the attributes.
-        for attr in attributes:
-            self.attr(attr).locked = lock
-
-    def hide_attributes(self, attributes=None, hide=True):
-        """Hide multiple attributes on the node.
-
-        Args:
-            attributes (list): List of attributes to hide.
-            hide (bool): Hide when True, and show when False.
-        """
-        # Validate string input.
-        if isinstance(attributes, six.string_types):
-            attributes = [attributes]
-
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
-
-        # Go through and lock the attributes.
-        for attr in attributes:
-            self.attr(attr).visible = not hide
-
 
 class Locator(DagNode):
     """Create Locator objects."""

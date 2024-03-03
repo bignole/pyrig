@@ -9,10 +9,9 @@ import pyrig.name
 
 LOG = logging.getLogger(__name__)
 
-FORCE_LOCK = True
+FORCE_LOCK = False
 FORCE_CO = True
-CHILDREN_CO = True
-
+CHILDREN_CO = False
 
 class Attribute(object):
     """"""
@@ -21,6 +20,7 @@ class Attribute(object):
         """"""
         self._node_object = node_object
         self._attr_name = pyrig.name.AttributName(attr_name)
+        self._attr_name.node = node_object
 
     # Builtin Methods
     def __repr__(self):
@@ -67,7 +67,7 @@ class Attribute(object):
     @property
     def plug(self):
         """"""
-        return "{}.{}".format(self._node_object, self._attr_name)
+        return self._attr_name.plug
     
     @property
     def kind(self):
@@ -304,22 +304,32 @@ class Attribute(object):
         if not children_co:
             self._link_attr(plug, **kwargs)
             return
+        
+        if self.children:
 
-        if self.children and plug.children:
-            if len(self.children) == len(plug.children):
-                for destination_child, source_child in zip(
-                    self.children, plug.children
-                ):
-                    if not destination_child.attr in skip:
-                        destination_child._link_attr(source_child, **kwargs)
+            attr_to_skip = []
+            for attr in [Attribute(self, attr) for attr in skip]:
+                if attr.exists():
+                    attr_to_skip.append(attr.name.long)
+
+            if not plug.children:
+                for destination_child in self.children:
+                    if not destination_child in attr_to_skip:
+                        destination_child.set_input(plug, **kwargs)
+                return
+
             else:
-                self._link_attr(plug, **kwargs)
-        elif self.children and not plug.children:
-            for destination_child in self.children:
-                if not destination_child in skip:
-                    destination_child._link_attr(plug, **kwargs)
-        else:
-            self._link_attr(plug, **kwargs)
+                if len(self.children) == len(plug.children):
+                    for destination_child, source_child in zip(
+                        self.children, plug.children
+                    ):
+                        if not destination_child.attr in attr_to_skip:
+                            destination_child.set_input(source_child, **kwargs)
+                    return
+                else:
+                    pass
+
+        self._link_attr(plug, **kwargs)
 
     def get_outputs(self):
         """"""
