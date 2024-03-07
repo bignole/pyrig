@@ -13,5 +13,9 @@
     "addDoubleLinear": "adl",
     "multDoubleLinear": "mdl",
     "multiplyDivide": "md",
-    "plusMinusAverage": "pma"
+    "plusMinusAverage": "pma",
+
+    "transform": "trs",
+    "joint": "jnt",
+    "locator": "loc"
 }
