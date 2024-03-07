@@ -5,19 +5,25 @@ from maya import cmds
 LOG = logging.getLogger(__name__)
 
 
-def create(node_type, name="", **kwargs):
+def create(type_, name="", **kwargs):
     """"""
     # define a mapping table for node_types
     import pyrig.node
     import pyrig.name
 
-    node_type_remap = {}
+    node_type_remap = {
+        "node": pyrig.node.Node,
+        "transform": pyrig.dagNode.DagNode,
+        #"joint": pyrig.dagNode.Joint,
+        "locator": pyrig.dagNode.Locator,
+        "attribute": pyrig.attribute.Attribute,
+    }
 
     # create kwargs
-    kwargs["name"] = pyrig.name.validate_name(name, node_type)
-    cls = node_type_remap.get(node_type, pyrig.node.Node)
-    if node_type not in node_type_remap:
-        kwargs["node_type"] = node_type
+    kwargs["name"] = pyrig.name.validate_name(name, type_)
+    cls = node_type_remap.get(type_, pyrig.node.Node)
+    if type_ not in node_type_remap:
+        kwargs["node_type"] = type_
 
     return cls(**kwargs)
 
@@ -60,3 +66,41 @@ def create_attr(node, **kwargs):
     if not obj:
         raise TypeError("No object named '{}'.".format(node))
     return obj.add_attr(**kwargs)
+class Types(object):
+    """Datatypes class."""
+
+    try:
+        from pyrig import Mat44, Vec3
+    except ImportError:
+        Mat44, Vec3 = None, None
+
+class Format(object):
+    """"""
+    def __init__(self):
+        """"""
+        self.json = 0
+
+class RotationFormalism(object):
+    """"""
+    def __init__(self):
+        """"""
+        self.euler = 0
+        self.quaternion = 1
+
+class Unit(object):
+    """"""
+    def __init__(self):
+        """"""
+        self.degree = 0
+        self.radian = 1
+
+class RotateOrder(object):
+    """"""
+    def __init__(self):
+        """"""
+        self.xyz = 0
+        self.yzx = 1
+        self.zxy = 2
+        self.xzy = 3
+        self.yxz = 4
+        self.zyx = 5

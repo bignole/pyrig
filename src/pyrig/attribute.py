@@ -1,17 +1,19 @@
 import logging
 import six
+import json
 
-import maya.OpenMaya as om
+import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
+from pyrig.core import Format
 import pyrig.name
 
 LOG = logging.getLogger(__name__)
 
 FORCE_LOCK = False
-FORCE_CO = True
-CHILDREN_CO = False
+FORCE_CONNECTION = True
+CONNECT_LEAF = False
 
 class Attribute(object):
     """"""
@@ -31,11 +33,11 @@ class Attribute(object):
 
     def __rshift__(self, plug):
         """Enables Attribute >> Attribute"""
-        return self.connect(plug, force_co=True)
+        return self.connect(plug, force_connection=True)
     
     def __ge__(self, plug):
         """Enables Attribute >= Attribute"""
-        return self.insert(plug, force_co=True)
+        return self.insert(plug, force_connection=True)
 
     def __floordiv__(self, plug):
         """Enables Attribute // Attribute"""
@@ -89,7 +91,9 @@ class Attribute(object):
     @property
     def default(self):
         """"""
-        return cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, listDefault=True)
+        return cmds.attributeQuery(
+            self.name[-1].unindexed(), node=self.node, listDefault=True
+        )
 
     @default.setter
     def default(self, val):
@@ -133,8 +137,12 @@ class Attribute(object):
     @property
     def min(self):
         """"""
-        if cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, minExists=True):
-            return cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, min=True)
+        if cmds.attributeQuery(
+            self.name[-1].unindexed(), node=self.node, minExists=True
+        ):
+            return cmds.attributeQuery(
+                self.name[-1].unindexed(), node=self.node, min=True
+            )
         return None
 
     @min.setter
@@ -144,8 +152,12 @@ class Attribute(object):
     @property
     def max(self):
         """"""
-        if cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, maxExists=True):
-            return cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, max=True)
+        if cmds.attributeQuery(
+            self.name[-1].unindexed(), node=self.node, maxExists=True
+        ):
+            return cmds.attributeQuery(
+                self.name[-1].unindexed(), node=self.node, max=True
+            )
         return None
 
     @max.setter
@@ -169,7 +181,9 @@ class Attribute(object):
     @property
     def enums(self):
         """"""
-        enums = cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, listEnum=True)
+        enums = cmds.attributeQuery(
+            self.name[-1].unindexed(), node=self.node, listEnum=True
+        )
         if enums:
             enums = enums[0].split(":")
         return enums
@@ -189,7 +203,9 @@ class Attribute(object):
     @property
     def children(self):
         """"""
-        children = cmds.attributeQuery(self.name[-1].unindexed(), node=self.node, listChildren=True)
+        children = cmds.attributeQuery(
+            self.name[-1].unindexed(),node=self.node, listChildren=True
+        )
         if not children:
             return None
         children_attr = ["{}.{}".format(self.attr, child) for child in children]
@@ -250,40 +266,52 @@ class Attribute(object):
 
         return self
 
-    def set_value(self, value, **kwargs):
+    def set_value(self, value, format=None, **kwargs):
         """"""
         force_lock = kwargs.get("force_lock", FORCE_LOCK)
 
         if value is None:
             value = self.default
 
+        if format:
+            value = self._data_format(value, format)
+
         self._force_lock(store=force_lock)
 
+        # openMaya cls
+        if isinstance(value, (om.MMatrix, om.MVector)):
+            value = list(value)
+        elif isinstance(value, (om.MPoint)):
+            value = list(value)[:-1]
         # Simple
         if isinstance(value, (int, float, bool)):
             cmds.setAttr(self.plug, value)
         # String
         elif isinstance(value, (str, six.text_type)):
             cmds.setAttr(self.plug, value, type="string")
-        # Matrix/Float3
+        # Matrix_list/Float3
         elif isinstance(value, (list, tuple)):
-            if len(value) == 16:  # Matrix
+            if len(value) == 16:  # matrix
                 cmds.setAttr(self.plug, *value, type="matrix")
             if len(value) == 3:  # vector
                 cmds.setAttr(self.plug, *value, type="float3")
 
         self._force_lock(restore=force_lock)
     
-    def get_value(self):
+    def get_value(self, format=None):
         """"""
         value = cmds.getAttr(self.plug, silent=True)
+
+        if format:
+            value = self._data_format(value, format, loads=True)
+
         if isinstance(value, list):
             if len(value) == 1:
                 # remove "list in list" (eg. node[translate].value)
                 value = value[0]
             if len(value) == 16:
-                # openMaya matrix class
-                value = om.MMatrix(value)
+                # matrix class
+                value = pr.Types.Mat44(value)
 
         return value
     
@@ -294,14 +322,14 @@ class Attribute(object):
     
     def set_input(self, plug, **kwargs):
         """"""
-        children_co = kwargs.get("chidren_co", CHILDREN_CO)
+        connect_leaf = kwargs.get("chidren_co", CONNECT_LEAF)
         skip = kwargs.get("skip", [])
 
         if plug is None:
             self.disconnect(**kwargs)
             return
 
-        if not children_co:
+        if not connect_leaf:
             self._link_attr(plug, **kwargs)
             return
         
@@ -395,7 +423,9 @@ class Attribute(object):
     def is_multi(self):
         """"""
         try:
-            return cmds.attributeQuery(str(self.name[-1]), node=self.node, multi=True)
+            return cmds.attributeQuery(
+                str(self.name[-1]), node=self.node, multi=True
+            )
         except:
             return False
 
@@ -428,10 +458,10 @@ class Attribute(object):
     def _link_attr(self, plug, **kwargs):
         """"""
         force_lock = kwargs.get("force_lock", FORCE_LOCK)
-        force_co = kwargs.get("force_co", FORCE_CO)
+        force_connection = kwargs.get("force_co", FORCE_CONNECTION)
 
         self._force_lock(store=force_lock)
-        cmds.connectAttr(plug.plug, self.plug, f=force_co)
+        cmds.connectAttr(plug.plug, self.plug, f=force_connection)
         self._force_lock(restore=force_lock)
 
     def _move_to_next_index(self, **kwargs):
@@ -441,7 +471,9 @@ class Attribute(object):
 
         next_index = self.name.index + 1
         if next_index in valid_indices:
-            next_plug = pr.get("{}.{}[{}]".format(self.node, self.name.unindexed(), next_index))
+            next_plug = pr.get("{}.{}[{}]".format(
+                self.node, self.name.unindexed(), next_index)
+            )
             if recursive:
                 next_plug._move_to_next_index(**kwargs)
 
@@ -450,3 +482,17 @@ class Attribute(object):
         next_plug.lock = self.lock
         
         self.reset(**kwargs)
+
+    def _data_format(self, value, format, loads=False):
+        """Supported format : json"""
+
+        if format == Format.json:
+            return json.loads(value) if loads else json.dumps(value)
+
+        else:
+            msg = (
+                "'{}' is not supported data format.\n"
+                "Supported format : 'json'"
+            ).format(format)
+            LOG.warning(msg)
+

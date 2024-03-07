@@ -1,9 +1,11 @@
 import logging
 import six
 
+import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
+from pyrig.core import RotateOrder
 import pyrig.maths.matrix
 import pyrig.node
 
@@ -24,8 +26,9 @@ class DagNode(pyrig.node.Node):
 
     @rotate_order.setter
     def rotate_order(self, value):
-        index = self["rotateOrder"].enums.index(value)
-        self["rotateOrder"].value = index
+        if isinstance(value, six.string_types):
+            value = self["rotateOrder"].enums.index(value)
+        self["rotateOrder"].value = value
 
     @property
     def shape(self):
@@ -65,63 +68,52 @@ class DagNode(pyrig.node.Node):
 
     def move_to(self, matrix):
         """Move to given matrix."""
-        matrix_list = matrix
-        if isinstance(matrix, pr.Types.Mat44):
+        if isinstance(matrix, om.MMatrix):
             matrix = pyrig.maths.matrix.cleanup_matrix(matrix)
-            matrix_list = matrix.to_list()
-        pr.pycmds("xform", self.node, worldSpace=True, matrix=matrix_list)
+            matrix = list(matrix)
+        cmds.xform(self.node, worldSpace=True, matrix=matrix)
 
-    def snap_to(self, node):
+    def snap_to(self, node, **kwargs):
         """Snap to given node."""
-        node = pr.get(node)
-        matrix = pyrig.maths.matrix.cleanup_matrix(node.worldMatrix.value)
-        self.move_to(matrix)
+        cmds.matchTransform(self, node, **kwargs)
 
-    def link_to(self, attribute, maintain_offset=False):
-        """Link matrix attribute to node's TRS.
-
-        Args:
-            attribute (Attribute): The pyrig Attribute class to drive the node
-            maintain_offset (bool): Link the object whilst maintaining it's
-                current position.
-        """
+    def link_to(self, attribute, maintain_offset=False, skip=[]):
+        """"""
         # Create decompose matrix.
-        mdcp = pr.create("decomposeMatrix", name=self.name.copy())
-        mdcp.name.append_type()
+        dcm = pr.create("decomposeMatrix", name=self.name.copy())
+        dcm.name.append_type()
 
         if maintain_offset:
             # Construct name
-            mult_name = attribute.node.name.copy(append="linker")
-            mult_matrix = pr.create("LoomTransform", name=mult_name)
-            mult_matrix.name.append_type()
-            # Matrix Maths.
-            inverse_parent = attribute.value.inverse()
-            offset_matrix = inverse_parent * self.worldMatrix.value
-            translate, rotate, scale = offset_matrix.decompose()
-            # Connect to stack.
-            attribute >> mult_matrix.attr("parent")
-            mult_matrix.translate.value = translate
-            mult_matrix.rotate.value = rotate
-            mult_matrix.scale.value = scale
-            mult_matrix.world_space >> mdcp.inputMatrix
+            mmx_name = attribute.node.name.copy(append="linker")
+            mmx = pr.create("multMatrix", name=mmx_name)
+            mmx.name.append_type()
+            # Compute offset
+            parent_inverse = attribute.value.inverse()
+            offset_matrix = self["matrix"].value * parent_inverse
+            # Connect to multMatrix
+            mmx["matrixIn"][0].value = offset_matrix
+            attribute >> mmx["matrixIn"][1]
+            mmx["matrixSum"] >> dcm["inputMatrix"]
         else:
-            attribute >> mdcp.inputMatrix
+            attribute >> dcm["inputMatrix"]
 
-        for xyz in "XYZ":
-            mdcp.attr("outputTranslate" + xyz) >> self.attr("translate" + xyz)
-            mdcp.attr("outputRotate" + xyz) >> self.attr("rotate" + xyz)
-            mdcp.attr("outputScale" + xyz) >> self.attr("scale" + xyz)
+        for channel in ["translate", "rotate", "scale"]:
+            if not channel in [self[_].name.long for _ in skip]:
+                dcm[channel].connect(self[channel], connect_leaf=True, skip=skip)
 
     def offset_by(
-        self, translate=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1)
+        self, translate=(0, 0, 0), rotate=(0, 0, 0), scale=(1, 1, 1), worldSpace=False
     ):
         """Offset current node by given matrix."""
         translation = pr.Types.Vec3(translate)
         rotation = pr.Types.Vec3(rotate)
         scale = pr.Types.Vec3(scale)
         offset = pr.Types.Mat44(translation, rotation, scale)
-        self.move_to(self.worldMatrix.value * offset)
-
+        if worldSpace:
+            self.move_to(offset * self["worldMatrix"].value)
+        else:
+            self.move_to(offset * self["worldMatrix"].value)
 class Locator(DagNode):
     """Create Locator objects."""
 

@@ -102,6 +102,7 @@ class Node(object):
         """"""
         cmds.delete(self.node)
 
+    # Methods - attribute
     def add_attr(self, attr="", **kwargs):
         """"""
         for arg in kwargs:
@@ -122,18 +123,10 @@ class Node(object):
         )
     
     def get_unique_attr_name(self, attr_name, idx=None):
-        """Make sure the given attribute name is unique.
-
-        Args:
-            attr_name (str): Name of the attribute to check.
-            idx (int): Specify an ending index.
-
-        Returns:
-            str: The new (if applicable) name.
-        """
+        """"""
         result = "{}{}".format(attr_name, idx or "")
         idx = 0
-        while pr.pycmds("attributeQuery", result, node=self.node, exists=True):
+        while self[result].exists():
             idx += 1
             result = "{}{}".format(attr_name, idx)
         return result
@@ -141,22 +134,14 @@ class Node(object):
     def attributes_property(
         self, attributes, lock=False, keyable=True, visible=True
     ):
-        """Change attributes properties on the node.
+        """"""
+        # Validate none input.
+        if attributes is None:
+            return
 
-        Args:
-            attributes (list): List of attributes to lock or unlock.
-            lock (bool): Lock when True, and unlock when False.
-            keyable (bool): Set keyable when True, and non-keyable when False.
-            visible (bool): Hide when True, and show when False.
-        """
         # Validate string input.
         if isinstance(attributes, six.string_types):
             attributes = [attributes]
-
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
 
         # Go through and lock the attributes.
         for attr in attributes:
@@ -165,41 +150,29 @@ class Node(object):
             self[attr].keyable = keyable
 
     def lock_attributes(self, attributes=None, lock=True):
-        """Lock multiple attributes on the node.
+        """"""
+        # Validate none input.
+        if attributes is None:
+            return
 
-        Args:
-            attributes (list): List of attributes to lock or unlock.
-            lock (bool): Lock when True, and unlock when False.
-        """
         # Validate string input.
         if isinstance(attributes, six.string_types):
             attributes = [attributes]
 
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
-
         # Go through and lock the attributes.
         for attr in attributes:
-            self.attr(attr).locked = lock
+            self[attr].lock = lock
 
     def hide_attributes(self, attributes=None, hide=True):
-        """Hide multiple attributes on the node.
+        """"""
+        # Validate none input.
+        if attributes is None:
+            return
 
-        Args:
-            attributes (list): List of attributes to hide.
-            hide (bool): Hide when True, and show when False.
-        """
         # Validate string input.
         if isinstance(attributes, six.string_types):
             attributes = [attributes]
 
-        # Validate none input.
-        if attributes is None:
-            LOG.warning("No attributes were selected to hide.")
-            return
-
         # Go through and lock the attributes.
         for attr in attributes:
-            self.attr(attr).visible = not hide
+            self[attr].visible = not hide

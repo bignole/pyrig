@@ -1,0 +1,17 @@
+{
+    "decomposeMatrix": "dcm",
+    "composeMatrix": "cpm",
+    "multMatrix": "mmx",
+    "pickMatrix": "pm",
+    "inverseMatrix": "im",
+    "pointMatrixMult": "pmm",
+    "aimMatrix": "aim",
+    "blendMatrix": "blend",
+
+    "vectorProduct": "vecp",
+
+    "addDoubleLinear": "adl",
+    "multDoubleLinear": "mdl",
+    "multiplyDivide": "md",
+    "plusMinusAverage": "pma"
+}

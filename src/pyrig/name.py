@@ -1,11 +1,21 @@
 import copy
 import six
 import re
+import json
 import logging
+import os
 
 from maya import cmds
 
 LOG = logging.getLogger(__name__)
+
+NODE_TYPE_REMAP = {}
+FILE_PATH = os.path.dirname(os.path.realpath(__file__))
+NODE_TYPE_REMAP_FILE = os.path.join(
+    FILE_PATH, "resources", "node_type_remap.json"
+)
+with open(NODE_TYPE_REMAP_FILE, "r") as stream:
+    NODE_TYPE_REMAP = json.load(stream)
 
 
 def validate_name(name, node_type=None):
@@ -39,6 +49,10 @@ def find_next_available_name(value, index=None):
         index += 1
         return find_next_available_name(cache_value, index)
     return value
+
+def transpose_node_type(node_type):
+    """"""
+    return NODE_TYPE_REMAP.get(node_type, node_type)
 
 class Name(object):
     """"""
@@ -86,6 +100,27 @@ class Name(object):
     def __copy__(self):
         """"""
         return Name(*self._tokens)
+    
+    def copy(
+        self, append=None, suffix=None, insert=None, extend=None, shape=False
+    ):
+        """Copy the current name and return it."""
+        name = copy.copy(self)
+        if insert and isinstance(insert, (tuple, list)):
+            name.tokens.insert(*insert)
+        if extend and len(extend) == 2:
+            name.tokens[extend[0]] += extend[1]
+        if len(name.tokens) == 1 and suffix:
+            name.append(suffix)
+        elif suffix:
+            name.suffix = suffix
+        if append:
+            name.append(append)
+        if len(name.tokens) == 1 and shape is True:
+            name.suffix += "Shape"
+        elif shape is True:
+            name.suffix += "Shape"
+        return name
 
     @property
     def node(self):
@@ -121,8 +156,9 @@ class Name(object):
 
     def append_type(self):
         """"""
-        if self.suffix != self._node.node_type:
-            self.append(self._node.node_type)
+        type_suffix = transpose_node_type(self._node.node_type)
+        if self.suffix != type_suffix:
+            self.append(type_suffix)
 
     def append(self, item):
         """"""
@@ -206,17 +242,26 @@ class AttributName(object):
     @property
     def nice(self):
         """"""
-        cmds.attributeName(self.plug, nice=True, leaf=True)
+        try:
+            return cmds.attributeName(self.plug, nice=True, leaf=True)
+        except:
+            return self.to_string()
 
     @property
     def short(self):
         """"""
-        cmds.attributeName(self.plug, short=True, leaf=True)
+        try:
+            cmds.attributeName(self.plug, short=True, leaf=True)
+        except:
+            return self.to_string()
 
     @property
     def long(self):
         """"""
-        cmds.attributeName(self.plug, long=True, leaf=True)
+        try:
+            cmds.attributeName(self.plug, long=True, leaf=True)
+        except:
+            return self.to_string()
 
     def to_string(self):
         """"""
