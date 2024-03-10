@@ -6,7 +6,7 @@ import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
-from pyrig.core import Format
+from pyrig.constants import Format
 import pyrig.name
 
 LOG = logging.getLogger(__name__)

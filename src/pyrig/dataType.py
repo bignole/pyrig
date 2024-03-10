@@ -2,7 +2,7 @@ import math
 
 import maya.api.OpenMaya as om
 
-from pyrig.core import RotationFormalism, Unit, RotateOrder
+from pyrig.constants import RotationFormalism, Unit, RotateOrder
 
 class Mat44(om.MMatrix):
     """"""

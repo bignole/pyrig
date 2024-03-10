@@ -5,20 +5,24 @@ import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
-from pyrig.core import RotateOrder
 import pyrig.maths.matrix
 import pyrig.node
 
 LOG = logging.getLogger(__name__)
 
-
-class DagNode(pyrig.node.Node):
+class Transform(pyrig.node.DagNode):
     """"""
 
     def __init__(self, *args, **kwargs):
         """"""
-        super(DagNode, self).__init__(*args, **kwargs)
+        super(Transform, self).__init__(*args, **kwargs)
 
+    # Internal Methods
+    def _extendObject(self):
+        """"""
+        return self
+
+    # Properties
     @property
     def rotate_order(self):
         """"""
@@ -66,6 +70,7 @@ class DagNode(pyrig.node.Node):
             return
         cmds.parent(self, value, relative=relative)
 
+    # Methods
     def move_to(self, matrix):
         """Move to given matrix."""
         if isinstance(matrix, om.MMatrix):
@@ -114,16 +119,20 @@ class DagNode(pyrig.node.Node):
             self.move_to(offset * self["worldMatrix"].value)
         else:
             self.move_to(offset * self["worldMatrix"].value)
-class Locator(DagNode):
+
+class Locator(Transform):
     """Create Locator objects."""
 
     def __init__(self, *args, **kwargs):
         """Class __init__."""
+        kwargs.setdefault("node_type", "transform")
         super(Locator, self).__init__(*args, **kwargs)
         self._shape = self._create_shape()
 
     def _create_shape(self):
         """Create the shape node."""
         name = self.name.copy(shape=True)
-        shape = pr.create("node", node_type="locator", name=name, parent=self)
+        shape = pr.create("node", node_type="locator", name=name, parent=self.node)
         return shape
+
+

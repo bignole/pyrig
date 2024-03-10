@@ -12,7 +12,7 @@ LOG = logging.getLogger(__name__)
 NODE_TYPE_REMAP = {}
 FILE_PATH = os.path.dirname(os.path.realpath(__file__))
 NODE_TYPE_REMAP_FILE = os.path.join(
-    FILE_PATH, "resources", "node_type_remap.json"
+    FILE_PATH, "ressources", "node_type_remap.json"
 )
 with open(NODE_TYPE_REMAP_FILE, "r") as stream:
     NODE_TYPE_REMAP = json.load(stream)

@@ -9,14 +9,10 @@ def create(type_, name="", **kwargs):
     """"""
     # define a mapping table for node_types
     import pyrig.node
-    import pyrig.name
+    import pyrig.transform
 
     node_type_remap = {
-        "node": pyrig.node.Node,
-        "transform": pyrig.dagNode.DagNode,
-        #"joint": pyrig.dagNode.Joint,
-        "locator": pyrig.dagNode.Locator,
-        "attribute": pyrig.attribute.Attribute,
+        "locator": pyrig.transform.Locator,
     }
 
     # create kwargs
@@ -24,12 +20,12 @@ def create(type_, name="", **kwargs):
     cls = node_type_remap.get(type_, pyrig.node.Node)
     if type_ not in node_type_remap:
         kwargs["node_type"] = type_
-
-    return cls(**kwargs)
+    return cls(**kwargs)._extendObject()
 
 def get(name):
     """"""
     import pyrig.node
+    import pyrig.transform
 
     # Check existence.
     if name is None:
@@ -66,41 +62,20 @@ def create_attr(node, **kwargs):
     if not obj:
         raise TypeError("No object named '{}'.".format(node))
     return obj.add_attr(**kwargs)
+
 class Types(object):
     """Datatypes class."""
 
     try:
-        from pyrig import Mat44, Vec3
+        from pyrig.dataType import Mat44, Vec3
     except ImportError:
         Mat44, Vec3 = None, None
 
-class Format(object):
-    """"""
-    def __init__(self):
-        """"""
-        self.json = 0
+class Cls(object):
+    """Constans class."""
 
-class RotationFormalism(object):
-    """"""
-    def __init__(self):
-        """"""
-        self.euler = 0
-        self.quaternion = 1
+    try:
+        from pyrig.constants import MayaType, Format, RotationFormalism, Unit, RotateOrder
 
-class Unit(object):
-    """"""
-    def __init__(self):
-        """"""
-        self.degree = 0
-        self.radian = 1
-
-class RotateOrder(object):
-    """"""
-    def __init__(self):
-        """"""
-        self.xyz = 0
-        self.yzx = 1
-        self.zxy = 2
-        self.xzy = 3
-        self.yxz = 4
-        self.zyx = 5
+    except ImportError:
+        MayaType, Format, RotationFormalism, Unit, RotateOrder = None, None, None, None, None

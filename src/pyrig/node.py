@@ -3,13 +3,14 @@ import six
 
 from maya import cmds
 
+import pyrig.core as pr
+from pyrig.constants import MayaType
 import pyrig.attribute
 import pyrig.name
 
 LOG = logging.getLogger(__name__)
 
 USE_UUID = True
-
 
 class Node(object):
     """"""
@@ -18,7 +19,8 @@ class Node(object):
         """"""
         self._name = pyrig.name.validate_name(name, node_type)
         self._name.node = self
-        self._node = name
+        self._node = str(self.name)
+        self._node_type = node_type
 
         # create the node
         if create:
@@ -31,7 +33,16 @@ class Node(object):
             self._name.node = self
 
         self._uuid = cmds.ls(self._node, uuid=True)[0]
-        self._node_type = node_type
+        self._inherited_types = cmds.nodeType(self._node, inherited=True)
+
+    # Internal Methods
+    def _extendObject(self):
+        """"""
+        if MayaType.transform in self._inherited_types:
+            import pyrig.transform
+            self.__class__ = pyrig.transform.Transform
+            self._extendObject()
+        return self
 
     # Builtin Methods
     def __repr__(self):
@@ -176,3 +187,46 @@ class Node(object):
         # Go through and lock the attributes.
         for attr in attributes:
             self[attr].visible = not hide
+
+class DagNode(Node):
+    """"""
+
+    def __init__(self, *args, **kwargs):
+        """"""
+        super(DagNode, self).__init__(*args, **kwargs)
+
+    # Internal Methods
+    def _extendObject(self):
+        """"""
+        if MayaType.transform in self._inherited_types:
+            import pyrig.transform
+            self.__class__ = pyrig.transform.Transform
+            self._extendObject()
+        return self
+
+    @property
+    def parent(self):
+        """"""
+        parent = (cmds.listRelatives(self.node, parent=True) or [None])[0]
+        return pr.get(parent)
+
+    @parent.setter
+    def parent(self, value):
+        self._set_parent(value)
+
+    def _set_parent(self, value, relative=False):
+        """"""
+        if value is None:
+            cmds.parent(self, world=True, relative=relative)
+        if not value:
+            return
+        if isinstance(value, six.string_types) and not pr.get(value):
+            raise TypeError("Parent node {} doesn't exists".format(value))
+
+        value = pr.get(value)
+        if value.dag_parent and value.dag_parent.node == self.node:
+            raise TypeError("Cannot parent an object to one of its children")
+        elif self.dag_parent and self.dag_parent.node == value.node:
+            LOG.debug("{} is already a child of {}".format(self, value))
+            return
+        cmds.parent(self, value, relative=relative)
