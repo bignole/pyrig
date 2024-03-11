@@ -3,6 +3,7 @@ class MayaType(object):
     """"""
     dagNode = "dagNode"
     transform = "transform"
+    joint = "joint"
 
 class Format(object):
     """"""

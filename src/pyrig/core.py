@@ -20,12 +20,11 @@ def create(type_, name="", **kwargs):
     cls = node_type_remap.get(type_, pyrig.node.Node)
     if type_ not in node_type_remap:
         kwargs["node_type"] = type_
-    return cls(**kwargs)._extendObject()
+    return cls(**kwargs)._extend_object()
 
 def get(name):
     """"""
     import pyrig.node
-    import pyrig.transform
 
     # Check existence.
     if name is None:
@@ -51,6 +50,7 @@ def get(name):
         name, attr_name = name.split(".", 1)
 
     pyrig_node = pyrig.node.Node(name=name, create=False)
+    pyrig_node._extend_object()
 
     if attr_name:
         return pyrig_node[attr_name]
@@ -65,17 +65,13 @@ def create_attr(node, **kwargs):
 
 class Types(object):
     """Datatypes class."""
-
-    try:
-        from pyrig.dataType import Mat44, Vec3
-    except ImportError:
-        Mat44, Vec3 = None, None
+    from pyrig.dataType import Mat44
+    from pyrig.dataType import Vec3
 
 class Cls(object):
-    """Constans class."""
-
-    try:
-        from pyrig.constants import MayaType, Format, RotationFormalism, Unit, RotateOrder
-
-    except ImportError:
-        MayaType, Format, RotationFormalism, Unit, RotateOrder = None, None, None, None, None
+    """Constants class."""
+    from pyrig.constants import MayaType
+    from pyrig.constants import Format
+    from pyrig.constants import RotationFormalism
+    from pyrig.constants import Unit
+    from pyrig.constants import RotateOrder

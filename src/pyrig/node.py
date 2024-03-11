@@ -5,6 +5,7 @@ from maya import cmds
 
 import pyrig.core as pr
 from pyrig.constants import MayaType
+import pyrig.baseNode
 import pyrig.attribute
 import pyrig.name
 
@@ -12,8 +13,9 @@ LOG = logging.getLogger(__name__)
 
 USE_UUID = True
 
-class Node(object):
+class Node(pyrig.baseNode.BaseNode):
     """"""
+    EXTEND_TYPE = [MayaType.dagNode]
 
     def __init__(self, name=None, node_type=None, parent=None, create=True):
         """"""
@@ -33,16 +35,7 @@ class Node(object):
             self._name.node = self
 
         self._uuid = cmds.ls(self._node, uuid=True)[0]
-        self._inherited_types = cmds.nodeType(self._node, inherited=True)
-
-    # Internal Methods
-    def _extendObject(self):
-        """"""
-        if MayaType.transform in self._inherited_types:
-            import pyrig.transform
-            self.__class__ = pyrig.transform.Transform
-            self._extendObject()
-        return self
+        self._inherited_dcc_types = cmds.nodeType(self._node, inherited=True)
 
     # Builtin Methods
     def __repr__(self):
@@ -190,19 +183,11 @@ class Node(object):
 
 class DagNode(Node):
     """"""
+    EXTEND_TYPE = [MayaType.transform]
 
     def __init__(self, *args, **kwargs):
         """"""
         super(DagNode, self).__init__(*args, **kwargs)
-
-    # Internal Methods
-    def _extendObject(self):
-        """"""
-        if MayaType.transform in self._inherited_types:
-            import pyrig.transform
-            self.__class__ = pyrig.transform.Transform
-            self._extendObject()
-        return self
 
     @property
     def parent(self):

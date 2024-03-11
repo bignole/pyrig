@@ -12,15 +12,11 @@ LOG = logging.getLogger(__name__)
 
 class Transform(pyrig.node.DagNode):
     """"""
+    EXTEND_TYPE = None
 
     def __init__(self, *args, **kwargs):
         """"""
         super(Transform, self).__init__(*args, **kwargs)
-
-    # Internal Methods
-    def _extendObject(self):
-        """"""
-        return self
 
     # Properties
     @property
