@@ -5,6 +5,7 @@ import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
+from pyrig.constants import MayaType
 import pyrig.maths.matrix
 import pyrig.node
 
@@ -12,7 +13,8 @@ LOG = logging.getLogger(__name__)
 
 class Transform(pyrig.node.DagNode):
     """"""
-    EXTEND_TYPE = None
+    
+    EXTEND_TYPE = [MayaType.joint]
 
     def __init__(self, *args, **kwargs):
         """"""
@@ -116,19 +118,21 @@ class Transform(pyrig.node.DagNode):
         else:
             self.move_to(offset * self["worldMatrix"].value)
 
-class Locator(Transform):
-    """Create Locator objects."""
+class Helper(Transform):
+    """"""
+
+    EXTEND_TYPE = None
 
     def __init__(self, *args, **kwargs):
         """Class __init__."""
         kwargs.setdefault("node_type", "transform")
-        super(Locator, self).__init__(*args, **kwargs)
+        super(Helper, self).__init__(*args, **kwargs)
         self._shape = self._create_shape()
 
     def _create_shape(self):
         """Create the shape node."""
         name = self.name.copy(shape=True)
-        shape = pr.create("node", node_type="locator", name=name, parent=self.node)
+        shape = pr.create("locator", name=name, parent=self.node)
         return shape
 
 

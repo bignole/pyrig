@@ -10,9 +10,12 @@ def create(type_, name="", **kwargs):
     # define a mapping table for node_types
     import pyrig.node
     import pyrig.transform
+    import pyrig.joint
 
     node_type_remap = {
-        "locator": pyrig.transform.Locator,
+        "node": pyrig.node.Node,
+        "helper": pyrig.transform.Helper,
+        "joint": pyrig.joint.Joint
     }
 
     # create kwargs

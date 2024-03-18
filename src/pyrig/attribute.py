@@ -236,7 +236,7 @@ class Attribute(object):
     # Methods
     def exists(self):
         """"""
-        return cmds.attributeQuery(str(self.name[-1]), node=self.node, exists=True)
+        return cmds.attributeQuery(str(self.name[-1]), node=str(self.node), exists=True)
     
     def create(self, **kwargs):
         """"""

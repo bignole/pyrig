@@ -15,6 +15,7 @@ USE_UUID = True
 
 class Node(pyrig.baseNode.BaseNode):
     """"""
+
     EXTEND_TYPE = [MayaType.dagNode]
 
     def __init__(self, name=None, node_type=None, parent=None, create=True):
@@ -183,6 +184,7 @@ class Node(pyrig.baseNode.BaseNode):
 
 class DagNode(Node):
     """"""
+    
     EXTEND_TYPE = [MayaType.transform]
 
     def __init__(self, *args, **kwargs):
