@@ -13,8 +13,6 @@ LOG = logging.getLogger(__name__)
 
 class Transform(pyrig.node.DagNode):
     """"""
-    
-    EXTEND_TYPE = [MayaType.joint]
 
     def __init__(self, *args, **kwargs):
         """"""
@@ -120,8 +118,6 @@ class Transform(pyrig.node.DagNode):
 
 class Helper(Transform):
     """"""
-
-    EXTEND_TYPE = None
 
     def __init__(self, *args, **kwargs):
         """Class __init__."""

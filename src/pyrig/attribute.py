@@ -15,6 +15,8 @@ FORCE_LOCK = False
 FORCE_CONNECTION = True
 CONNECT_LEAF = False
 
+# TODO call in, call out
+
 class Attribute(object):
     """"""
 
@@ -72,7 +74,7 @@ class Attribute(object):
         return self._attr_name.plug
     
     @property
-    def kind(self):
+    def type(self):
         """"""
         try:
             return cmds.getAttr(self.plug, typ=True)
@@ -91,9 +93,13 @@ class Attribute(object):
     @property
     def default(self):
         """"""
-        return cmds.attributeQuery(
-            self.name[-1].unindexed(), node=self.node, listDefault=True
-        )
+        dv = self._attribute_query(listDefault=True)
+        if not dv:
+            if self.type == "matrix":
+                dv = pr.Types.Mat44()
+            elif self.type == "string":
+                dv = ""
+        return dv
 
     @default.setter
     def default(self, val):
@@ -119,7 +125,7 @@ class Attribute(object):
             cmds.setAttr(self.plug, cb=True)
             cmds.setAttr(self.plug, k=True)
         elif val is False:
-            cbox = cmds.getAttr(self.plug, cb=True)
+            cbox = self.visible
             cmds.setAttr(self.plug, k=False, cb=cbox)
 
     @property
@@ -137,12 +143,8 @@ class Attribute(object):
     @property
     def min(self):
         """"""
-        if cmds.attributeQuery(
-            self.name[-1].unindexed(), node=self.node, minExists=True
-        ):
-            return cmds.attributeQuery(
-                self.name[-1].unindexed(), node=self.node, min=True
-            )
+        if self._attribute_query(minExists=True):
+            return self._attribute_query(min=True)
         return None
 
     @min.setter
@@ -152,12 +154,8 @@ class Attribute(object):
     @property
     def max(self):
         """"""
-        if cmds.attributeQuery(
-            self.name[-1].unindexed(), node=self.node, maxExists=True
-        ):
-            return cmds.attributeQuery(
-                self.name[-1].unindexed(), node=self.node, max=True
-            )
+        if self._attribute_query(maxExists=True):
+            return self._attribute_query(max=True)
         return None
 
     @max.setter
@@ -181,9 +179,7 @@ class Attribute(object):
     @property
     def enums(self):
         """"""
-        enums = cmds.attributeQuery(
-            self.name[-1].unindexed(), node=self.node, listEnum=True
-        )
+        enums = self._attribute_query(listEnum=True)
         if enums:
             enums = enums[0].split(":")
         return enums
@@ -191,21 +187,19 @@ class Attribute(object):
     @property
     def parent(self):
         """"""
-        if self.name.index:
+        if self.name.index is not None:
             return pr.get("{}.{}".format(self.node, self.name.unindexed()))
 
-        parent_attr_name = self.name[:-1]
+        parent_attr_name = self._attribute_query(listParent=True)
         if not parent_attr_name:
             return None
         
-        return pr.get("{}.{}".format(self.node, parent_attr_name))
+        return pr.get("{}.{}".format(self.node, parent_attr_name[0]))
 
     @property
     def children(self):
         """"""
-        children = cmds.attributeQuery(
-            self.name[-1].unindexed(),node=self.node, listChildren=True
-        )
+        children = self._attribute_query(listChildren=True)
         if not children:
             return None
         children_attr = ["{}.{}".format(self.attr, child) for child in children]
@@ -231,12 +225,12 @@ class Attribute(object):
     def next_available_plug(self):
         """"""
         multi_index = self.get_next_available_index()
-        return pr.get(self[multi_index])
+        return self[multi_index]
 
     # Methods
     def exists(self):
         """"""
-        return cmds.attributeQuery(str(self.name[-1]), node=str(self.node), exists=True)
+        return self._attribute_query(unindexed=False, exists=True)
     
     def create(self, **kwargs):
         """"""
@@ -259,7 +253,7 @@ class Attribute(object):
         if not any(arg in kwargs for arg in ["k", "keyable"]):
             kwargs["k"] = True
 
-        cmds.addAttr(self.node, ln=self.attr, **kwargs)
+        cmds.addAttr(str(self.node), ln=self.attr, **kwargs)
 
         for name, value in flags.items():
             setattr(self, name, value)
@@ -322,42 +316,41 @@ class Attribute(object):
     
     def set_input(self, plug, **kwargs):
         """"""
+        force_lock = kwargs.get("force_lock", FORCE_LOCK)
+        force_connection = kwargs.get("force_co", FORCE_CONNECTION)
         connect_leaf = kwargs.get("chidren_co", CONNECT_LEAF)
         skip = kwargs.get("skip", [])
 
         if plug is None:
             self.disconnect(**kwargs)
             return
-
-        if not connect_leaf:
-            self._link_attr(plug, **kwargs)
-            return
         
-        if self.children:
-
-            attr_to_skip = []
-            for attr in [Attribute(self, attr) for attr in skip]:
-                if attr.exists():
-                    attr_to_skip.append(attr.name.long)
-
-            if not plug.children:
-                for destination_child in self.children:
-                    if not destination_child in attr_to_skip:
-                        destination_child.set_input(plug, **kwargs)
-                return
-
-            else:
-                if len(self.children) == len(plug.children):
-                    for destination_child, source_child in zip(
-                        self.children, plug.children
-                    ):
-                        if not destination_child.attr in attr_to_skip:
-                            destination_child.set_input(source_child, **kwargs)
+        if not isinstance(plug, Attribute):
+            plug = pr.get(plug)
+        
+        if connect_leaf:
+            if self.children:
+                attr_to_skip = []
+                for attr in [Attribute(self, attr) for attr in skip]:
+                    if attr.exists():
+                        attr_to_skip.append(attr.name.long)
+                if not plug.children:
+                    for destination_child in self.children:
+                        if not destination_child in attr_to_skip:
+                            destination_child.set_input(plug, **kwargs)
                     return
                 else:
-                    pass
+                    if len(self.children) == len(plug.children):
+                        for destination_child, source_child in zip(
+                            self.children, plug.children
+                        ):
+                            if not destination_child.attr in attr_to_skip:
+                                destination_child.set_input(source_child, **kwargs)
+                        return
 
-        self._link_attr(plug, **kwargs)
+        self._force_lock(store=force_lock)
+        cmds.connectAttr(plug.plug, self.plug, f=force_connection)
+        self._force_lock(restore=force_lock)
 
     def get_outputs(self):
         """"""
@@ -375,7 +368,8 @@ class Attribute(object):
         if plug:
             if not isinstance(plug, Attribute):
                 plug = pr.get(plug)
-            plug._disconnect_connection_from_plug(self, **kwargs)
+            if cmds.isConnected(self.plug, str(plug)):
+                plug.break_connections(input=True, output=False, **kwargs)
             return
 
         self.break_connections(input=True, output=False, **kwargs)
@@ -383,7 +377,6 @@ class Attribute(object):
     def break_connections(self, input=False, output=True, **kwargs):
         """"""
         force_lock = kwargs.get("force_lock", FORCE_LOCK)
-
         if input is True:
             self._force_lock(store=force_lock)
             plugs = cmds.listConnections(self.plug, s=True, d=False, p=True)
@@ -405,7 +398,7 @@ class Attribute(object):
 
     def shift(self, **kwargs):
         """"""
-        if self.name.index:
+        if self.name.index is not None:
             valid_indices = self.parent.valid_indices
             self._move_to_next_index(valid_indices=valid_indices, **kwargs)
 
@@ -423,9 +416,7 @@ class Attribute(object):
     def is_multi(self):
         """"""
         try:
-            return cmds.attributeQuery(
-                str(self.name[-1]), node=self.node, multi=True
-            )
+            self._attribute_query(unindexed=False, multi=True)
         except:
             return False
 
@@ -437,6 +428,11 @@ class Attribute(object):
         return len(self.valid_indices)
 
     # Internal Methods
+    def _attribute_query(self, unindexed=True, **kwargs):
+        """"""
+        attr_name = self.name[-1].unindexed() if unindexed else str(self.name[-1])
+        return cmds.attributeQuery(attr_name, node=str(self.node), **kwargs)
+
     def _force_lock(self, store=False, restore=False):
         """"""
         if store:
@@ -447,33 +443,19 @@ class Attribute(object):
             if self._locked:
                 self.lock = True
 
-    def _disconnect_connection_from_plug(self, plug, **kwargs):
-        """"""
-        if not isinstance(plug, Attribute):
-            plug = pr.get(plug)
-
-        if self.input.plug == str(plug):
-            self.break_connections(input=True, output=False, **kwargs)
-
-    def _link_attr(self, plug, **kwargs):
-        """"""
-        force_lock = kwargs.get("force_lock", FORCE_LOCK)
-        force_connection = kwargs.get("force_co", FORCE_CONNECTION)
-
-        self._force_lock(store=force_lock)
-        cmds.connectAttr(plug.plug, self.plug, f=force_connection)
-        self._force_lock(restore=force_lock)
-
     def _move_to_next_index(self, **kwargs):
         """Recursive."""
         valid_indices = kwargs.get("valid_indices", None)
         recursive = kwargs.get("recursive", True)
 
         next_index = self.name.index + 1
-        if next_index in valid_indices:
-            next_plug = pr.get("{}.{}[{}]".format(
-                self.node, self.name.unindexed(), next_index)
+        next_plug = Attribute(
+            self.node, "{}[{}]".format(
+                self.name.unindexed(), next_index
             )
+        )
+
+        if next_index in valid_indices:
             if recursive:
                 next_plug._move_to_next_index(**kwargs)
 
@@ -488,7 +470,6 @@ class Attribute(object):
 
         if format == Format.json:
             return json.loads(value) if loads else json.dumps(value)
-
         else:
             msg = (
                 "'{}' is not supported data format.\n"

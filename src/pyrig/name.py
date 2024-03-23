@@ -12,7 +12,7 @@ LOG = logging.getLogger(__name__)
 NODE_TYPE_REMAP = {}
 FILE_PATH = os.path.dirname(os.path.realpath(__file__))
 NODE_TYPE_REMAP_FILE = os.path.join(
-    FILE_PATH, "ressources", "node_type_remap.json"
+    FILE_PATH, "ressources", "suffix_type_remap.json"
 )
 with open(NODE_TYPE_REMAP_FILE, "r") as stream:
     NODE_TYPE_REMAP = json.load(stream)
@@ -75,7 +75,7 @@ class Name(object):
                 self._tokens.append(part)
 
     def __repr__(self):
-        return "{}({})".format(self.__class__.__name__, self.to_string())
+        return "{}('{}')".format(self.__class__.__name__, self.to_string())
 
     def __str__(self):
         return self.to_string()
@@ -186,7 +186,7 @@ class AttributName(object):
                 self._tokens.append(str(part))
 
     def __repr__(self):
-        return "{}({})".format(self.__class__.__name__, self.to_string())
+        return "{}('{}')".format(self.__class__.__name__, self.to_string())
 
     def __str__(self):
         return self.to_string()
@@ -267,9 +267,9 @@ class AttributName(object):
         """"""
         return self.SEPARATOR.join(self.tokens)
     
-    def unindexted(self):
+    def unindexed(self):
         """"""
-        if not self.index:
+        if self.index is None:
             return self.to_string()
-        unindexted =  self._tokens[-1].replace("[{}]".format(self.index), "")
-        return self.SEPARATOR.join(self.tokens[:-1] + unindexted)
+        unindexed =  self._tokens[-1].replace("[{}]".format(self.index), "")
+        return self.SEPARATOR.join(self.tokens[:-1] + [unindexed])

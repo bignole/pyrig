@@ -10,8 +10,6 @@ LOG = logging.getLogger(__name__)
 
 class Joint(pyrig.transform.Transform):
     """"""
-    
-    EXTEND_TYPE = None
 
     def __init__(self, *args, **kwargs):
         """Class __init__."""
