@@ -4,7 +4,6 @@ import six
 from maya import cmds
 
 import pyrig.core as pr
-from pyrig.constants import MayaType
 import pyrig.attribute
 import pyrig.name
 
@@ -13,10 +12,27 @@ LOG = logging.getLogger(__name__)
 USE_UUID = True
 
 class Node(object):
-    """"""
+    """Base class for nodes."""
 
     def __init__(self, name=None, node_type=None, parent=None, create=True):
-        """"""
+        """_summary_
+
+        Parameters
+        ----------
+        name : str, optional
+            Node name, used node_type if not specified,.
+            by default None
+        node_type : str, optional
+            Node type used by create_mode, undefined while retrieving.
+            by default None
+        parent : str/pyrig.node.Node, optional
+            Parent of the node for the create_mode, undefined while retrieving
+            by default None.
+        create : bool, optional
+            Toggle create_mode/retrieved_mode.
+            by default True
+        """
+
         self._name = pyrig.name.validate_name(name, node_type)
         self._name.node = self
         self._node = str(self.name)
@@ -27,7 +43,7 @@ class Node(object):
             kwargs = {}
             kwargs["name"] = str(self._name)
             if parent:
-                kwargs["parent"] = parent
+                kwargs["parent"] = str(parent)
             self._node = cmds.createNode(node_type, skipSelect=True, **kwargs)
             self._name = pyrig.name.validate_name(self._node, node_type)
             self._name.node = self
@@ -35,7 +51,7 @@ class Node(object):
         self._uuid = cmds.ls(self._node, uuid=True)[0]
         self._inherited_dcc_types = cmds.nodeType(self._node, inherited=True)
 
-    # Builtin Methods
+    # Builtin Methods ---
     def __repr__(self):
         return "{}('{}')".format(self.__class__.__name__, self.node)
         
@@ -54,7 +70,7 @@ class Node(object):
         """"""
         return pyrig.attribute.Attribute(self, key)
         
-    # Properties
+    # Properties ---
     @property
     def name(self):
         """"""
@@ -99,7 +115,7 @@ class Node(object):
         """"""
         return cmds.objExists(self.node)
 
-    # Methods
+    # Methods ---
     def delete(self):
         """"""
         cmds.delete(self.node)
@@ -107,19 +123,23 @@ class Node(object):
     # Methods - attribute
     def add_attr(self, attr="", **kwargs):
         """"""
-        for arg in kwargs:
-            if arg in ["ln", "longName"]:
-                attr = kwargs.pop(arg)
-        return self[attr].create(**kwargs)
+        properties = pyrig.attribute.AttributeProperties(kwargs)
+
+        # rename if specified
+        for key in properties.copy():
+            if key in ["ln", "longName"]:
+                attr = properties.pop(key)
+
+        return self[attr].create(**properties)
     
     def add_separator(self, name=None):
         """Create a unique separator attribute."""
         separator_name = self.get_unique_attr_name("separator")
         self.add_attr(
             separator_name,
-            niceName="",
+            niceName=" " * 15,
             attributeType="enum",
-            enumName=name if name else "--------------",
+            enumName=name if name else "-" * 15,
             visible=True,
             lock=True,
         )
@@ -178,6 +198,16 @@ class Node(object):
         # Go through and lock the attributes.
         for attr in attributes:
             self[attr].visible = not hide
+
+    # Class Methods ---
+    @classmethod
+    def retrieve(cls, name):
+        """Convert given string to Node object."""
+        if not cmds.objExists(name):
+            msg = "Could not retrieve '{}'. It does not exist in the scene.".format(name)
+            LOG.warning(msg)
+            return None
+        return cls(name=name, create=False)
 
 class DagNode(Node):
     """"""

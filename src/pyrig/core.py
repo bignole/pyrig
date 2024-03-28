@@ -2,20 +2,9 @@ import logging
 
 from maya import cmds
 
+from pyrig.constants import *
+
 LOG = logging.getLogger(__name__)
-
-class Types(object):
-    """Datatypes class."""
-    from pyrig.dataType import Mat44
-    from pyrig.dataType import Vec3
-
-class Cst(object):
-    """Constants class."""
-    from pyrig.constants import MayaType
-    from pyrig.constants import Format
-    from pyrig.constants import RotationFormalism
-    from pyrig.constants import Unit
-    from pyrig.constants import RotateOrder
 
 
 def create(type_, name="", **kwargs):
@@ -40,8 +29,7 @@ def create(type_, name="", **kwargs):
         kwargs["node_type"] = type_
         inherited_types = cmds.nodeType(type_, isTypeName=True, inherited=True)
         cls = _find_cls_from_types(inherited_types)
-    print(cls)
-    print(kwargs)
+
     return cls(**kwargs)
 
 
@@ -49,10 +37,14 @@ def get(name):
     """"""
     import pyrig.node
 
-    # Check existence.
     if name is None:
         return None
+    
+    # make sure its not already a Node
+    if isinstance(name, pyrig.node.Node):
+        return name
 
+    # Check existence.
     retrived = cmds.ls(name)
     if len(retrived) == 0:
         msg = "'{}' does not exist in the graph.".format(name)
@@ -63,18 +55,15 @@ def get(name):
             "More than one object named '{}'.".format(name)
         )
 
-    # make sure its not already a Node
-    if isinstance(name, pyrig.node.Node):
-        return name
-
     # check if it is a plug
     attr_name = None
     if "." in name:
         name, attr_name = name.split(".", 1)
 
+    # determine proper class
     inherited_types = cmds.nodeType(name, inherited=True)
     cls = _find_cls_from_types(inherited_types)
-    pyrig_node = cls(name=name, create=False)
+    pyrig_node = cls.retrieve(name)
 
     if attr_name:
         return pyrig_node[attr_name]
@@ -96,12 +85,17 @@ def _find_cls_from_types(types):
     import pyrig.joint
 
     maya_type_remap = {
-        Cst.MayaType.joint: pyrig.joint.Joint,
-        Cst.MayaType.transform: pyrig.transform.Transform,
-        Cst.MayaType.dagNode: pyrig.node.DagNode,
+        MayaType.joint: pyrig.joint.Joint,
+        MayaType.transform: pyrig.transform.Transform,
+        MayaType.dagNode: pyrig.node.DagNode,
     }
 
     for type_, cls in maya_type_remap.items():
         if type_ in types:
             return cls
     return pyrig.node.Node
+
+class Types(object):
+    """Datatypes class."""
+    from pyrig.dataType import Mat44
+    from pyrig.dataType import Vec3

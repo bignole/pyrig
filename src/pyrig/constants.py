@@ -27,3 +27,22 @@ class RotateOrder(object):
     xzy = 3
     yxz = 4
     zyx = 5
+
+    @staticmethod
+    def maya_api_type(val):
+        """"""
+        ro_remap = {
+            0: "kXYZ",
+            1: "kYZX",
+            2: "kZXY",
+            3: "kXZY",
+            4: "kYXZ",
+            5: "kZYX",
+            "xyz": "kXYZ",
+            "yzx": "kYZX",
+            "zxy": "kZXY",
+            "xzy": "kXZY",
+            "yxz": "kYXZ",
+            "zyx": "kZYX",
+        }
+        return ro_remap[val]

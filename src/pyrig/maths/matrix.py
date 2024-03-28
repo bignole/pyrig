@@ -4,7 +4,7 @@ import math
 import maya.api.OpenMaya as om
 
 import pyrig.core as pr
-from pyrig.constants import RotationFormalism, Unit, RotateOrder
+from pyrig.constants import Unit, RotateOrder
 
 LOG = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def cleanup_matrix(matrix, precision=4):
 
     return matrix
 
-def compose(translate, rotate, scale, **kwargs):
+def compose(translate, rotate, scale, shear, **kwargs):
     """"""
     angle_unit = kwargs.get("angle_unit", Unit.degree)
     rotate_order = kwargs.get("rotate_order", RotateOrder.xyz)
@@ -34,12 +34,19 @@ def compose(translate, rotate, scale, **kwargs):
     tMat.setTranslation(translate, om.MSpace.kWorld)
 
     if len(rotate) == 4:  # RotationFormalism.quaternion
-        tMat.setRotationQuaternion(rotate)
+        mRotate = om.MQuaternion(rotate)
     elif len(rotate) == 3:  # RotationFormalism.euler
         if angle_unit == Unit.degree:
+            # convert to radian
             rotate = [math.radians(_) for _ in rotate]
-        tMat.setRotation(rotate, rotate_order)
+        # set rotate order
+        kRotationOrder = getattr(
+            om.MEulerRotation,
+            RotateOrder.maya_api_type(rotate_order),
+        )
+        mRotate = om.MEulerRotation(rotate, kRotationOrder)
+    tMat.setRotation(mRotate)
 
-    tMat.setScale(scale)
+    tMat.setScale(scale, om.MSpace.kWorld)
 
     return pr.Types.Mat44(tMat.asMatrix())

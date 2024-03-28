@@ -5,7 +5,6 @@ import maya.api.OpenMaya as om
 from maya import cmds
 
 import pyrig.core as pr
-from pyrig.constants import MayaType
 import pyrig.maths.matrix
 import pyrig.node
 

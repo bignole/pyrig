@@ -1,6 +1,7 @@
 import logging
 import six
 import json
+from collections import UserDict
 
 import maya.api.OpenMaya as om
 from maya import cmds
@@ -21,7 +22,15 @@ class Attribute(object):
     """"""
 
     def __init__(self, node_object, attr_name):
-        """"""
+        """_summary_
+
+        Parameters
+        ----------
+        node_object : pyrig.node.Node
+            Attribute holder node.
+        attr_name : str
+            Attribute name.
+        """
         self._node_object = node_object
         self._attr_name = pyrig.name.AttributName(attr_name)
         self._attr_name.node = node_object
@@ -99,6 +108,9 @@ class Attribute(object):
                 dv = pr.Types.Mat44()
             elif self.type == "string":
                 dv = ""
+        if isinstance(dv, list):
+            if len(dv) == 1:
+                dv = dv[0]
         return dv
 
     @default.setter
@@ -227,6 +239,16 @@ class Attribute(object):
         multi_index = self.get_next_available_index()
         return self[multi_index]
 
+    # Properties - info
+    @property
+    def properties(self):
+        """Get all attribute properties as dict.
+
+        :return: Cls(userDict) filled with attribute properties.
+        :rtype: pyrig.attribute.AttributeProperties
+        """
+        return AttributeProperties.retrieve(self)
+
     # Methods
     def exists(self):
         """"""
@@ -238,22 +260,25 @@ class Attribute(object):
             LOG.warning("'{}' already exists.".format(self.plug))
             return
 
+        properties = AttributeProperties(kwargs)
+
         flags = {}
-        for name, value in kwargs.items():
-            if hasattr(self, name):
-                flags[name] = value
-                kwargs.pop(name)
+        #properties = [p for p in dir(Attribute) if isinstance(getattr(Attribute, p), property)]
+        for key, value in properties.copy().items():
+            if hasattr(Attribute, key):
+                flags[key] = value
+                del properties[key]
 
         # rename if specified
-        for arg in kwargs:
+        for arg in properties.copy():
             if arg in ["ln", "longName"]:
-                self._attr_name = pyrig.name.AttributName(kwargs.pop(arg))
+                self._attr_name = pyrig.name.AttributName(properties.pop(arg))
 
         # keyable if not specified
-        if not any(arg in kwargs for arg in ["k", "keyable"]):
-            kwargs["k"] = True
+        if not any(key in properties for key in ["k", "keyable"]):
+            properties["keyable"] = True
 
-        cmds.addAttr(str(self.node), ln=self.attr, **kwargs)
+        cmds.addAttr(str(self.node), ln=self.attr, **properties)
 
         for name, value in flags.items():
             setattr(self, name, value)
@@ -477,3 +502,72 @@ class Attribute(object):
             ).format(format)
             LOG.warning(msg)
 
+class AttributeProperties(UserDict):
+    """"""
+    def __init__(self, *args, **kwargs):
+        """"""
+        super(AttributeProperties, self).__init__(*args, **kwargs)
+
+    # Builtin Methods ---
+    def __repr__(self):
+        return "{}({})".format(self.__class__.__name__, self.data)
+    
+    # Methods ---
+    def delete_names(self):
+        """"""
+        for key in ["longName", "niceName", "shortName"]:
+            if key in self.data:
+                del self.data[key]
+    
+    # Class Methods ---
+    @classmethod
+    def retrieve(cls, attr):
+        """"""
+        attr_name = str(attr)
+        if not isinstance(attr, Attribute):
+            attr = pr.get(attr)
+        if not attr:
+            msg = "Could not retrieve '{}'. It does not exist in the scene.".format(attr_name)
+            LOG.warning(msg)
+            return None
+
+        data = {}
+        # names
+        for key in ["long", "nice", "short"]:
+            val = getattr(attr.name, key)
+            if val is not None:
+                data["{}Name".format(key)] = val
+
+        # state
+        data["hidden"] = attr._attribute_query(hidden=True)
+        data["keyable"] = attr.keyable
+        data["lock"] = attr.lock
+
+        # multi
+        if attr.is_multi():
+            data["multi"] = True
+
+        # dataType/attributeType
+        attribute_type = attr.type
+        if attribute_type in ["string", "matrix"]:
+            data["dataType"] = attribute_type
+        else:
+            data["attributeType"] = attribute_type
+
+        # value parameters
+        if attribute_type in ["long", "double", "bool"]:
+            data["defaultValue"] = attr.default
+            for key in ["max", "min"]:
+                val = getattr(attr, key)
+                if val is not None:
+                    data["{}Value".format(key)] = val
+
+        if attribute_type in ['enum']:
+            data['enumName'] = attr.enums
+
+        # hierarchy
+        parent = attr.parent
+        if parent is not None:
+            data['parent'] = parent
+
+        return cls(data)

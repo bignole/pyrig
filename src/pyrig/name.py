@@ -245,23 +245,23 @@ class AttributName(object):
         try:
             return cmds.attributeName(self.plug, nice=True, leaf=True)
         except:
-            return self.to_string()
+            return None
 
     @property
     def short(self):
         """"""
         try:
-            cmds.attributeName(self.plug, short=True, leaf=True)
+            return cmds.attributeName(self.plug, short=True, leaf=True)
         except:
-            return self.to_string()
+            return None
 
     @property
     def long(self):
         """"""
         try:
-            cmds.attributeName(self.plug, long=True, leaf=True)
+            return cmds.attributeName(self.plug, long=True, leaf=True)
         except:
-            return self.to_string()
+            return None
 
     def to_string(self):
         """"""
