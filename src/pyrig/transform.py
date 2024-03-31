@@ -122,7 +122,9 @@ class Helper(Transform):
         """Class __init__."""
         kwargs.setdefault("node_type", "transform")
         super(Helper, self).__init__(*args, **kwargs)
-        self._shape = self._create_shape()
+
+        if kwargs.get("create"):
+            self._shape = self._create_shape()
 
     def _create_shape(self):
         """Create the shape node."""

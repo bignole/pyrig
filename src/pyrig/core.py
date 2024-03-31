@@ -86,8 +86,10 @@ def _find_cls_from_types(types):
 
     maya_type_remap = {
         MayaType.joint: pyrig.joint.Joint,
+        MayaType.dagContainer: pyrig.container.DagContainer,
         MayaType.transform: pyrig.transform.Transform,
         MayaType.dagNode: pyrig.node.DagNode,
+        MayaType.container: pyrig.container.Container,
     }
 
     for type_, cls in maya_type_remap.items():

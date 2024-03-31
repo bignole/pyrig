@@ -4,6 +4,8 @@ class MayaType(object):
     dagNode = "dagNode"
     transform = "transform"
     joint = "joint"
+    container = "container"
+    dagContainer = "dagContainer"
 
 class Format(object):
     """"""
