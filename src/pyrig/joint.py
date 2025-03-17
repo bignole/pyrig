@@ -50,8 +50,8 @@ class Joint(pyrig.transform.Transform):
 
                 # Connections.
                 pr.get(value).worldMatrix >> inverse.inputMatrix
-                traversed_connection >> mult.attr("stack[0]")
-                inverse.outputMatrix >> mult.attr("stack[1]")
+                traversed_connection >> mult.attr("matrixIn[0]")
+                inverse.outputMatrix >> mult.attr("matrixIn[1]")
 
                 # Remove the previous decompose matrix.
                 input_node.delete()
