@@ -43,7 +43,7 @@ class Joint(pyrig.transform.Transform):
             traversed_connection = decompose_attr.get_input()
             if traversed_connection:
                 name = [self.name, "DAGParent"]
-                mult = pr.create("LoomMatrixStack", name=name)
+                mult = pr.create("multMatrix", name=name)
                 mult.name.append_type()
                 inverse = pr.create("inverseMatrix", name=name)
                 inverse.name.append_type()
